@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <radialGradient id="glow" cx="70%" cy="20%" r="80%">
+      <stop offset="0" stop-color="#f6f2e8" stop-opacity=".35"/>
+      <stop offset=".42" stop-color="#8dd7cc" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#0b1110"/>
+    </radialGradient>
+    <filter id="soft">
+      <feGaussianBlur stdDeviation="2"/>
+    </filter>
+  </defs>
+  <rect width="128" height="128" rx="24" fill="#0b1110"/>
+  <rect x="5" y="5" width="118" height="118" rx="21" fill="url(#glow)" stroke="#8dd7cc" stroke-opacity=".36" stroke-width="2"/>
+  <circle cx="64" cy="66" r="38" fill="none" stroke="#8dd7cc" stroke-opacity=".22" stroke-width="6"/>
+  <path d="M29 63a36 36 0 1 0 12-26" fill="none" stroke="#8dd7cc" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M29 30v31h31" fill="none" stroke="#8dd7cc" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M64 45v24l18 10" fill="none" stroke="#f6f2e8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="93" cy="34" r="7" fill="#d6b86a" filter="url(#soft)"/>
+  <circle cx="93" cy="34" r="5" fill="#d6b86a"/>
+</svg>

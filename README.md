@@ -17,6 +17,10 @@ npm run dev
 
 Open `http://127.0.0.1:5173`.
 
+## Chrome extension
+
+There is also a standalone Chrome extension in `chrome-extension/`. It is the direct workflow for authenticated pages: open the target page, click the extension, and press **Generate + Copy Prompt**. The extension runs in the current tab context, captures DOM/computed style and a visible screenshot palette, then copies a Figma/frontend prompt.
+
 ## First sample
 
 Use `https://x.ai` in the URL field. The API will render the page with Playwright, capture a screenshot, extract visible DOM nodes and computed styles, then generate the source/style/Figma outputs from that model.

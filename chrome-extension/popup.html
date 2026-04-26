@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rewind Any Web</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img">
+            <path d="M3 12a9 9 0 1 0 3-6.7" />
+            <path d="M3 4v6h6" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </div>
+        <div>
+          <h1>Rewind Any Web</h1>
+          <p>Current tab to prompt.</p>
+        </div>
+      </header>
+
+      <section class="current-page" aria-label="Current tab">
+        <span id="pageTitle">Ready</span>
+        <small id="pageUrl">Open a page, then generate.</small>
+      </section>
+
+      <button class="primary-action" id="generateButton" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 3-6.7" />
+          <path d="M3 4v6h6" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+        <span>Generate + Copy Prompt</span>
+      </button>
+
+      <div class="metrics" id="metrics" hidden>
+        <div>
+          <strong id="elementCount">0</strong>
+          <span>Elements</span>
+        </div>
+        <div>
+          <strong id="colorCount">0</strong>
+          <span>Colors</span>
+        </div>
+        <div>
+          <strong id="fontCount">0</strong>
+          <span>Type</span>
+        </div>
+      </div>
+
+      <img class="screenshot" id="screenshot" alt="Current tab screenshot" hidden />
+
+      <label class="prompt-field">
+        <span>Generated prompt</span>
+        <textarea id="promptOutput" readonly placeholder="Your prompt will appear here."></textarea>
+      </label>
+
+      <footer>
+        <button id="copyButton" type="button" disabled>Copy again</button>
+        <button id="downloadButton" type="button" disabled>Download .md</button>
+      </footer>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <script src="popup.js"></script>
+  </body>
+</html>
