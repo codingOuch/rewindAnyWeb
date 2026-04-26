@@ -161,13 +161,13 @@ export default function App() {
               {useBrowserSession ? (
                 <div className="session-card">
                   <p>
-                    Uses a local saved browser profile for this site, including cookies and localStorage.
+                    Tries your running Chrome over CDP first, then falls back to a local saved profile.
                   </p>
                   <button type="button" onClick={handleOpenLoginWindow}>
                     <KeyRound size={16} />
-                    Open login window
+                    Open saved login window
                   </button>
-                  <small>{sessionStatus ?? "Log in once, keep the window available, then run Rewind."}</small>
+                  <small>{sessionStatus ?? "For current Chrome, enable CDP on localhost:9222. Otherwise log in once here."}</small>
                 </div>
               ) : null}
             </div>

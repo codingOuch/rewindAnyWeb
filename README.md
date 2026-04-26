@@ -25,13 +25,14 @@ Screenshot uploads work without a browser. They infer palette, canvas size, visu
 
 ## Authenticated pages
 
-URL mode can replay a logged-in session for sites that require authentication without manually pasting cookies:
+URL mode can replay a logged-in session for sites that require authentication without manually pasting cookies. When **Use browser login state** is enabled, Rewind first tries to attach to a running Chromium browser over CDP at `http://127.0.0.1:9222`, then falls back to the saved local profile flow.
 
 1. Check **Use browser login state**.
-2. Click **Open login window**.
-3. Log in to the target site in the opened Chromium window.
-4. Keep the login window available for the most reliable current-session capture.
-5. Run **Rewind** with **Use browser login state** still checked.
+2. To reuse an already-open browser, start Chrome with a local CDP endpoint or enable remote debugging, then run **Rewind**.
+3. If CDP is not available, click **Open saved login window**.
+4. Log in to the target site in the opened Chromium window.
+5. Keep the login window available for the most reliable current-session capture.
+6. Run **Rewind** with **Use browser login state** still checked.
 
 The app stores a local Playwright browser profile under `.rewind-sessions/` so cookies and localStorage can be reused for future captures of the same site. This directory is git-ignored.
 

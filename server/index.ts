@@ -52,6 +52,7 @@ const upload = multer({
 const PORT = Number(process.env.PORT ?? 8787);
 const DEFAULT_VIEWPORT = { width: 1440, height: 1000 };
 const SESSION_ROOT = path.join(process.cwd(), ".rewind-sessions");
+const DEFAULT_CDP_ENDPOINT = process.env.REWIND_CDP_ENDPOINT ?? "http://127.0.0.1:9222";
 const activeSessions = new Map<string, ActiveSession>();
 
 app.use(cors());
@@ -151,8 +152,9 @@ async function analyzeUrl(
 
   try {
     if (auth.useBrowserSession) {
-      const sessionContext = await getBrowserSessionContext(url, viewport);
+      const sessionContext = await getAuthenticatedSessionContext(url, viewport);
       context = sessionContext.context;
+      browser = sessionContext.browser;
       closeContextWhenDone = sessionContext.closeContextWhenDone;
     } else {
       browser = await chromium.launch({
@@ -301,6 +303,41 @@ async function getBrowserSessionContext(url: string, viewport: { width: number; 
   return {
     context,
     closeContextWhenDone: true
+  };
+}
+
+async function getAuthenticatedSessionContext(url: string, viewport: { width: number; height: number }) {
+  const cdpContext = await getCdpSessionContext(viewport).catch(() => null);
+  if (cdpContext) {
+    return cdpContext;
+  }
+
+  const profileContext = await getBrowserSessionContext(url, viewport);
+  return {
+    browser: null,
+    context: profileContext.context,
+    closeContextWhenDone: profileContext.closeContextWhenDone
+  };
+}
+
+async function getCdpSessionContext(viewport: { width: number; height: number }) {
+  const browser = await chromium.connectOverCDP(DEFAULT_CDP_ENDPOINT, {
+    timeout: 1500
+  });
+  const context = browser.contexts()[0];
+  if (!context) {
+    await browser.close().catch(() => undefined);
+    throw new Error("Connected to CDP, but no default browser context was available.");
+  }
+
+  for (const page of context.pages()) {
+    await page.setViewportSize(viewport).catch(() => undefined);
+  }
+
+  return {
+    browser,
+    context,
+    closeContextWhenDone: false
   };
 }
 
