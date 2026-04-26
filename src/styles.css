@@ -64,14 +64,34 @@ button:disabled {
 }
 
 .brand-mark {
+  position: relative;
   display: grid;
   width: 44px;
   height: 44px;
   place-items: center;
-  border: 1px solid rgb(246 242 232 / 20%);
+  border: 1px solid rgb(141 215 204 / 36%);
   border-radius: 8px;
-  background: rgb(141 215 204 / 12%);
+  background:
+    radial-gradient(circle at 72% 28%, rgb(246 242 232 / 18%), transparent 24px),
+    linear-gradient(135deg, rgb(141 215 204 / 16%), rgb(214 184 106 / 7%)),
+    rgb(255 255 255 / 5%);
   color: #8dd7cc;
+  overflow: hidden;
+}
+
+.brand-mark::before {
+  position: absolute;
+  inset: 8px;
+  border: 1px solid rgb(141 215 204 / 22%);
+  border-radius: 999px;
+  box-shadow: inset 0 0 12px rgb(141 215 204 / 10%);
+  content: "";
+}
+
+.brand-mark svg {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 0 10px rgb(141 215 204 / 32%));
 }
 
 .brand-lockup h1,
@@ -272,10 +292,33 @@ button:disabled {
 
 .primary-action {
   width: 100%;
-  border-color: rgb(141 215 204 / 38%);
-  background: #8dd7cc;
-  color: #071211;
+  min-height: 48px;
+  border-color: rgb(141 215 204 / 40%);
+  background:
+    radial-gradient(circle at 48% 0%, rgb(141 215 204 / 26%), transparent 64%),
+    linear-gradient(180deg, rgb(20 31 31), rgb(12 15 15));
+  color: #f6f2e8;
   font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 12%),
+    0 10px 28px rgb(0 0 0 / 18%);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.primary-action:hover:not(:disabled) {
+  border-color: rgb(141 215 204 / 66%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 18%),
+    0 14px 34px rgb(141 215 204 / 14%);
+  transform: translateY(-1px);
+}
+
+.primary-action svg {
+  color: #8dd7cc;
 }
 
 .status-error {
@@ -285,6 +328,36 @@ button:disabled {
   background: rgb(255 125 125 / 10%);
   color: #ffb4b4;
   padding: 12px;
+}
+
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(360px, calc(100vw - 32px));
+  min-height: 44px;
+  border: 1px solid rgb(141 215 204 / 32%);
+  border-radius: 8px;
+  background: rgb(16 23 22 / 94%);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 42%);
+  color: #f6f2e8;
+  padding: 10px 14px;
+}
+
+.toast svg {
+  flex: 0 0 auto;
+  color: #8dd7cc;
+}
+
+.toast span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .sample-note {

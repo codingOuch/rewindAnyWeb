@@ -7,14 +7,13 @@ import {
   Figma,
   FileJson,
   Globe2,
+  History,
   ImageUp,
   KeyRound,
   Layers3,
   LoaderCircle,
   Palette,
   Rows3,
-  ScanLine,
-  Sparkles
 } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import { analyzeScreenshot, analyzeUrl, openLoginWindow } from "./api";
@@ -41,6 +40,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -69,9 +69,16 @@ export default function App() {
   }
 
   async function copyText(label: string, value: string) {
-    await navigator.clipboard.writeText(value);
-    setCopied(label);
-    window.setTimeout(() => setCopied(null), 1400);
+    try {
+      await copyToClipboard(value);
+      setCopied(label);
+      setToast(`${copyLabel(label)} copied`);
+      window.setTimeout(() => setCopied(null), 1400);
+      window.setTimeout(() => setToast(null), 1800);
+    } catch {
+      setToast("Copy failed");
+      window.setTimeout(() => setToast(null), 1800);
+    }
   }
 
   function download(label: string, value: string, type = "application/json") {
@@ -104,7 +111,7 @@ export default function App() {
       <section className="control-panel" aria-label="Input controls">
         <div className="brand-lockup">
           <div className="brand-mark">
-            <ScanLine size={22} />
+            <History size={24} />
           </div>
           <div>
             <h1>Rewind Any Web</h1>
@@ -160,7 +167,7 @@ export default function App() {
                     <KeyRound size={16} />
                     Open login window
                   </button>
-                  <small>{sessionStatus ?? "Log in once, keep the window available, then run Reverse."}</small>
+                  <small>{sessionStatus ?? "Log in once, keep the window available, then run Rewind."}</small>
                 </div>
               ) : null}
             </div>
@@ -178,8 +185,8 @@ export default function App() {
           )}
 
           <button className="primary-action" disabled={loading} type="submit">
-            {loading ? <LoaderCircle className="spin" size={18} /> : <Sparkles size={18} />}
-            {loading ? "Analyzing" : "Reverse"}
+            {loading ? <LoaderCircle className="spin" size={18} /> : <History size={18} />}
+            {loading ? "Rewinding" : "Rewind"}
           </button>
         </form>
 
@@ -291,7 +298,54 @@ export default function App() {
           </div>
         )}
       </section>
+      <Toast message={toast} />
     </main>
+  );
+}
+
+function copyLabel(label: string) {
+  const labels: Record<string, string> = {
+    css: "CSS",
+    figma: "Figma JSON",
+    handoff: "Handoff prompt",
+    tsx: "React source"
+  };
+  return labels[label] ?? "Content";
+}
+
+async function copyToClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch {
+      // Fall through to the textarea copy path for stricter browser contexts.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+
+  if (!copied) {
+    throw new Error("Copy command failed.");
+  }
+}
+
+function Toast({ message }: { message: string | null }) {
+  if (!message) return null;
+
+  return (
+    <div className="toast" role="status" aria-live="polite">
+      <Check size={16} />
+      <span>{message}</span>
+    </div>
   );
 }
 

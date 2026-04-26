@@ -1,6 +1,6 @@
 # Rewind Any Web
 
-Reverse a URL or screenshot into a practical frontend reconstruction kit:
+Rewind a URL or screenshot into a practical frontend reconstruction kit:
 
 - source scaffold: React and CSS generated from the captured page model
 - style guide: typography, color tokens, spacing, radii, and interaction notes
@@ -31,7 +31,7 @@ URL mode can replay a logged-in session for sites that require authentication wi
 2. Click **Open login window**.
 3. Log in to the target site in the opened Chromium window.
 4. Keep the login window available for the most reliable current-session capture.
-5. Run **Reverse** with **Use browser login state** still checked.
+5. Run **Rewind** with **Use browser login state** still checked.
 
 The app stores a local Playwright browser profile under `.rewind-sessions/` so cookies and localStorage can be reused for future captures of the same site. This directory is git-ignored.
 
