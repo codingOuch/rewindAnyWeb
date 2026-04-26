@@ -1,7 +1,7 @@
 import cors from "cors";
 import express from "express";
 import multer from "multer";
-import { chromium, type Browser, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import sharp from "sharp";
 import type {
   AnalysisResult,
@@ -13,6 +13,25 @@ import type {
   StyleGuide,
   TypographyToken
 } from "../src/types";
+
+type CookieSameSite = "Strict" | "Lax" | "None";
+
+interface AuthCookieOptions {
+  includeCookies: boolean;
+  cookieText: string;
+}
+
+interface ParsedCookie {
+  name: string;
+  value: string;
+  url?: string;
+  domain?: string;
+  path?: string;
+  expires?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: CookieSameSite;
+}
 
 const app = express();
 const upload = multer({
@@ -26,7 +45,7 @@ const PORT = Number(process.env.PORT ?? 8787);
 const DEFAULT_VIEWPORT = { width: 1440, height: 1000 };
 
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
@@ -35,10 +54,11 @@ app.get("/api/health", (_req, res) => {
 app.post("/api/analyze/url", async (req, res) => {
   const rawUrl = String(req.body?.url ?? "").trim();
   const viewport = normalizeViewport(req.body?.viewport);
+  const auth = normalizeAuthOptions(req.body?.auth);
 
   try {
     const url = normalizeUrl(rawUrl);
-    const result = await analyzeUrl(url, viewport);
+    const result = await analyzeUrl(url, viewport, auth);
     res.json(result);
   } catch (error) {
     res.status(400).json({ error: errorMessage(error) });
@@ -83,7 +103,19 @@ function normalizeUrl(rawUrl: string) {
   return url.toString();
 }
 
-async function analyzeUrl(url: string, viewport: { width: number; height: number }): Promise<AnalysisResult> {
+function normalizeAuthOptions(input: unknown): AuthCookieOptions {
+  const asRecord = typeof input === "object" && input ? (input as Record<string, unknown>) : {};
+  return {
+    includeCookies: Boolean(asRecord.includeCookies),
+    cookieText: String(asRecord.cookieText ?? "").trim()
+  };
+}
+
+async function analyzeUrl(
+  url: string,
+  viewport: { width: number; height: number },
+  auth: AuthCookieOptions
+): Promise<AnalysisResult> {
   let browser: Browser | null = null;
 
   try {
@@ -100,6 +132,7 @@ async function analyzeUrl(url: string, viewport: { width: number; height: number
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     });
     await context.addInitScript("Object.defineProperty(navigator, 'webdriver', { get: () => undefined })");
+    await applyAuthCookies(context, url, auth);
     const page = await context.newPage();
 
     await gotoPage(page, url);
@@ -154,6 +187,192 @@ async function analyzeUrl(url: string, viewport: { width: number; height: number
   } finally {
     await browser?.close();
   }
+}
+
+async function applyAuthCookies(context: BrowserContext, url: string, auth: AuthCookieOptions) {
+  if (!auth.includeCookies) return;
+  if (!auth.cookieText) {
+    throw new Error("Paste cookie data or turn off login cookies.");
+  }
+
+  const cookies = parseCookieInput(auth.cookieText, url);
+  if (!cookies.length) {
+    throw new Error("No usable cookies were found. Paste a Cookie header, JSON export, or Netscape cookie file.");
+  }
+
+  await context.addCookies(cookies);
+}
+
+function parseCookieInput(rawCookieText: string, targetUrl: string): ParsedCookie[] {
+  const text = rawCookieText.trim();
+  if (!text) return [];
+  if (text.length > 1_000_000) {
+    throw new Error("Cookie payload is too large. Keep it under 1 MB.");
+  }
+
+  const cookies = text.startsWith("{") || text.startsWith("[")
+    ? parseJsonCookies(text, targetUrl)
+    : looksLikeNetscapeCookies(text)
+      ? parseNetscapeCookies(text)
+      : parseCookieHeader(text, targetUrl);
+
+  const normalized = cookies.map((cookie) => normalizeCookie(cookie, targetUrl)).filter(Boolean) as ParsedCookie[];
+  if (normalized.length > 200) {
+    throw new Error("Too many cookies. Keep the import under 200 cookies for one rewind request.");
+  }
+  return normalized;
+}
+
+function parseJsonCookies(text: string, targetUrl: string): ParsedCookie[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("Cookie JSON is invalid.");
+  }
+
+  if (Array.isArray(parsed)) {
+    return parsed.flatMap((item) => cookieFromUnknown(item, targetUrl));
+  }
+
+  if (typeof parsed === "object" && parsed) {
+    const record = parsed as Record<string, unknown>;
+    if (Array.isArray(record.cookies)) {
+      return record.cookies.flatMap((item) => cookieFromUnknown(item, targetUrl));
+    }
+
+    if ("name" in record && "value" in record) {
+      return cookieFromUnknown(record, targetUrl);
+    }
+
+    return Object.entries(record).flatMap(([name, value]) =>
+      typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+        ? [{ name, value: String(value), url: targetUrl }]
+        : []
+    );
+  }
+
+  return [];
+}
+
+function cookieFromUnknown(input: unknown, targetUrl: string): ParsedCookie[] {
+  if (typeof input !== "object" || !input) return [];
+  const record = input as Record<string, unknown>;
+  const name = String(record.name ?? "").trim();
+  const value = String(record.value ?? "");
+  if (!name) return [];
+
+  const domain = typeof record.domain === "string" && record.domain ? record.domain : undefined;
+  const path = typeof record.path === "string" && record.path ? record.path : "/";
+  const expiresValue = Number(record.expires ?? record.expirationDate ?? record.expiry);
+  const cookie: ParsedCookie = {
+    name,
+    value,
+    path,
+    httpOnly: Boolean(record.httpOnly),
+    secure: Boolean(record.secure),
+    sameSite: normalizeSameSite(record.sameSite)
+  };
+
+  if (domain) {
+    cookie.domain = domain;
+  } else {
+    cookie.url = targetUrl;
+  }
+
+  if (Number.isFinite(expiresValue) && expiresValue > 0) {
+    cookie.expires = Math.floor(expiresValue);
+  }
+
+  return [cookie];
+}
+
+function parseCookieHeader(text: string, targetUrl: string): ParsedCookie[] {
+  const header = text.replace(/^cookie:\s*/i, "");
+  return header
+    .split(";")
+    .map((part) => part.trim())
+    .flatMap((part) => {
+      const separatorIndex = part.indexOf("=");
+      if (separatorIndex <= 0) return [];
+      const name = part.slice(0, separatorIndex).trim();
+      const value = part.slice(separatorIndex + 1).trim();
+      return name ? [{ name, value, url: targetUrl }] : [];
+    });
+}
+
+function parseNetscapeCookies(text: string): ParsedCookie[] {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .flatMap((line) => {
+      if (!line || (line.startsWith("#") && !line.startsWith("#HttpOnly_"))) return [];
+
+      const httpOnly = line.startsWith("#HttpOnly_");
+      const normalizedLine = httpOnly ? line.replace(/^#HttpOnly_/, "") : line;
+      const parts = normalizedLine.includes("\t") ? normalizedLine.split("\t") : normalizedLine.split(/\s+/);
+      if (parts.length < 7) return [];
+
+      const [domain, , path, secure, expires, name, ...valueParts] = parts;
+      const expiresNumber = Number(expires);
+      const cookie: ParsedCookie = {
+        name,
+        value: valueParts.join(" "),
+        domain,
+        path: path || "/",
+        httpOnly,
+        secure: /^true$/i.test(secure)
+      };
+
+      if (Number.isFinite(expiresNumber) && expiresNumber > 0) {
+        cookie.expires = Math.floor(expiresNumber);
+      }
+
+      return cookie.name ? [cookie] : [];
+    });
+}
+
+function looksLikeNetscapeCookies(text: string) {
+  return text
+    .split(/\r?\n/)
+    .some((line) => /^#HttpOnly_|^[^\s]+\s+(TRUE|FALSE)\s+\S+\s+(TRUE|FALSE)\s+\d+\s+\S+\s+/i.test(line.trim()));
+}
+
+function normalizeCookie(cookie: ParsedCookie, targetUrl: string): ParsedCookie | null {
+  const name = cookie.name.trim();
+  if (!name || /[\s;=]/.test(name)) return null;
+
+  const normalized: ParsedCookie = {
+    name,
+    value: cookie.value,
+    path: cookie.path || "/",
+    httpOnly: cookie.httpOnly,
+    secure: cookie.secure,
+    sameSite: cookie.sameSite
+  };
+
+  if (cookie.domain) {
+    normalized.domain = cookie.domain;
+    normalized.path = cookie.path || "/";
+  } else {
+    normalized.url = cookie.url || targetUrl;
+    delete normalized.path;
+  }
+
+  if (cookie.expires && Number.isFinite(cookie.expires) && cookie.expires > 0) {
+    normalized.expires = cookie.expires;
+  }
+
+  return normalized;
+}
+
+function normalizeSameSite(value: unknown): CookieSameSite | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.toLowerCase();
+  if (normalized === "strict") return "Strict";
+  if (normalized === "lax") return "Lax";
+  if (normalized === "none" || normalized === "no_restriction") return "None";
+  return undefined;
 }
 
 function isBlockedPage(title: string, elements: PageElement[]) {

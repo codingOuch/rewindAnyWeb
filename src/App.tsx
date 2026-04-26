@@ -8,6 +8,7 @@ import {
   FileJson,
   Globe2,
   ImageUp,
+  KeyRound,
   Layers3,
   LoaderCircle,
   Palette,
@@ -32,6 +33,8 @@ const outputTabs: Array<{ id: OutputTab; label: string; icon: typeof Code2 }> = 
 export default function App() {
   const [mode, setMode] = useState<InputMode>("url");
   const [url, setUrl] = useState("https://x.ai");
+  const [includeCookies, setIncludeCookies] = useState(false);
+  const [cookieText, setCookieText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [activeTab, setActiveTab] = useState<OutputTab>("source");
@@ -45,7 +48,15 @@ export default function App() {
     setLoading(true);
 
     try {
-      const nextResult = mode === "url" ? await analyzeUrl(url) : file ? await analyzeScreenshot(file) : null;
+      const nextResult =
+        mode === "url"
+          ? await analyzeUrl(url, {
+              includeCookies,
+              cookieText
+            })
+          : file
+            ? await analyzeScreenshot(file)
+            : null;
       if (!nextResult) {
         throw new Error("Choose a screenshot first.");
       }
@@ -110,10 +121,36 @@ export default function App() {
           </div>
 
           {mode === "url" ? (
-            <label className="field">
-              <span>Web page</span>
-              <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://x.ai" />
-            </label>
+            <div className="url-options">
+              <label className="field">
+                <span>Web page</span>
+                <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://x.ai" />
+              </label>
+
+              <label className="checkbox-field">
+                <input
+                  checked={includeCookies}
+                  type="checkbox"
+                  onChange={(event) => setIncludeCookies(event.target.checked)}
+                />
+                <span>
+                  <KeyRound size={16} />
+                  Bring login cookies
+                </span>
+              </label>
+
+              {includeCookies ? (
+                <label className="field cookie-field">
+                  <span>Cookie data</span>
+                  <textarea
+                    value={cookieText}
+                    onChange={(event) => setCookieText(event.target.value)}
+                    placeholder="Cookie header, JSON cookie export, or Netscape cookie file"
+                  />
+                  <small>Used only for this rewind request. Nothing is saved.</small>
+                </label>
+              ) : null}
+            </div>
           ) : (
             <label className="drop-zone">
               <ImageUp size={22} />

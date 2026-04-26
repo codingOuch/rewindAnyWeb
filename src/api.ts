@@ -1,6 +1,11 @@
 import type { AnalysisResult } from "./types";
 
-export async function analyzeUrl(url: string): Promise<AnalysisResult> {
+export interface UrlAuthOptions {
+  includeCookies: boolean;
+  cookieText: string;
+}
+
+export async function analyzeUrl(url: string, auth?: UrlAuthOptions): Promise<AnalysisResult> {
   const response = await fetch("/api/analyze/url", {
     method: "POST",
     headers: {
@@ -11,7 +16,8 @@ export async function analyzeUrl(url: string): Promise<AnalysisResult> {
       viewport: {
         width: 1440,
         height: 1000
-      }
+      },
+      auth
     })
   });
 

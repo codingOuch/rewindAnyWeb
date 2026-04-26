@@ -22,7 +22,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -108,6 +109,11 @@ button:disabled {
   gap: 16px;
 }
 
+.url-options {
+  display: grid;
+  gap: 12px;
+}
+
 .segmented-control {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -155,20 +161,65 @@ button:disabled {
   font-size: 13px;
 }
 
-.field input {
+.field input,
+.field textarea {
   width: 100%;
-  height: 48px;
   border: 1px solid rgb(246 242 232 / 16%);
   border-radius: 8px;
   background: rgb(0 0 0 / 24%);
   color: #f6f2e8;
   outline: 0;
+}
+
+.field input {
+  height: 48px;
   padding: 0 14px;
 }
 
-.field input:focus {
+.field textarea {
+  min-height: 116px;
+  max-height: 240px;
+  resize: vertical;
+  line-height: 1.45;
+  padding: 12px 14px;
+}
+
+.field input:focus,
+.field textarea:focus {
   border-color: rgb(141 215 204 / 70%);
   box-shadow: 0 0 0 3px rgb(141 215 204 / 12%);
+}
+
+.field small {
+  color: rgb(246 242 232 / 48%);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  border: 1px solid rgb(246 242 232 / 12%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 4%);
+  color: rgb(246 242 232 / 78%);
+  padding: 10px 12px;
+}
+
+.checkbox-field input {
+  width: 18px;
+  height: 18px;
+  accent-color: #8dd7cc;
+}
+
+.checkbox-field span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .drop-zone {

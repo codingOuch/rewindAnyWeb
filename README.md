@@ -23,6 +23,21 @@ Use `https://x.ai` in the URL field. The API will render the page with Playwrigh
 
 Screenshot uploads work without a browser. They infer palette, canvas size, visual density, and a Figma-friendly frame scaffold from the image pixels.
 
+## Authenticated pages
+
+URL mode can replay a logged-in session for sites that require authentication:
+
+1. Check **Bring login cookies**.
+2. Paste one of these formats:
+   - a raw `Cookie` header, for example `sid=...; theme=...`
+   - a JSON cookie export, such as `[{ "name": "sid", "value": "...", "domain": ".example.com", "path": "/" }]`
+   - a Netscape cookie file
+3. Run **Reverse**.
+
+Cookies are injected into the Playwright browser context for that one request only. They are not written to disk or stored by the app.
+
+The app cannot automatically read cookies from your normal browser for another domain. Browsers intentionally block that. A future browser extension or explicit local browser profile integration could make this smoother.
+
 ## AI usage
 
 This MVP does not require AI to run. URL mode relies on browser rendering, DOM extraction, computed CSS, screenshot capture, and deterministic generation. Screenshot mode relies on pixel sampling and layout heuristics.
