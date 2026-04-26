@@ -17,7 +17,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
-import { analyzeScreenshot, analyzeUrl } from "./api";
+import { analyzeScreenshot, analyzeUrl, openLoginWindow } from "./api";
 import type { AnalysisResult, FigmaLayer } from "./types";
 
 type InputMode = "url" | "screenshot";
@@ -33,8 +33,8 @@ const outputTabs: Array<{ id: OutputTab; label: string; icon: typeof Code2 }> = 
 export default function App() {
   const [mode, setMode] = useState<InputMode>("url");
   const [url, setUrl] = useState("https://x.ai");
-  const [includeCookies, setIncludeCookies] = useState(false);
-  const [cookieText, setCookieText] = useState("");
+  const [useBrowserSession, setUseBrowserSession] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [activeTab, setActiveTab] = useState<OutputTab>("source");
@@ -51,8 +51,7 @@ export default function App() {
       const nextResult =
         mode === "url"
           ? await analyzeUrl(url, {
-              includeCookies,
-              cookieText
+              useBrowserSession
             })
           : file
             ? await analyzeScreenshot(file)
@@ -83,6 +82,19 @@ export default function App() {
     link.download = label;
     link.click();
     URL.revokeObjectURL(urlObject);
+  }
+
+  async function handleOpenLoginWindow() {
+    setError(null);
+    setSessionStatus("Opening login window...");
+
+    try {
+      const session = await openLoginWindow(url);
+      setSessionStatus(session.message);
+    } catch (caught) {
+      setSessionStatus(null);
+      setError(caught instanceof Error ? caught.message : "Could not open the login window.");
+    }
   }
 
   const figmaJson = useMemo(() => (result ? JSON.stringify(result.figma, null, 2) : ""), [result]);
@@ -129,26 +141,27 @@ export default function App() {
 
               <label className="checkbox-field">
                 <input
-                  checked={includeCookies}
+                  checked={useBrowserSession}
                   type="checkbox"
-                  onChange={(event) => setIncludeCookies(event.target.checked)}
+                  onChange={(event) => setUseBrowserSession(event.target.checked)}
                 />
                 <span>
                   <KeyRound size={16} />
-                  Bring login cookies
+                  Use browser login state
                 </span>
               </label>
 
-              {includeCookies ? (
-                <label className="field cookie-field">
-                  <span>Cookie data</span>
-                  <textarea
-                    value={cookieText}
-                    onChange={(event) => setCookieText(event.target.value)}
-                    placeholder="Cookie header, JSON cookie export, or Netscape cookie file"
-                  />
-                  <small>Used only for this rewind request. Nothing is saved.</small>
-                </label>
+              {useBrowserSession ? (
+                <div className="session-card">
+                  <p>
+                    Uses a local saved browser profile for this site, including cookies and localStorage.
+                  </p>
+                  <button type="button" onClick={handleOpenLoginWindow}>
+                    <KeyRound size={16} />
+                    Open login window
+                  </button>
+                  <small>{sessionStatus ?? "Log in once, keep the window available, then run Reverse."}</small>
+                </div>
               ) : null}
             </div>
           ) : (

@@ -161,8 +161,7 @@ button:disabled {
   font-size: 13px;
 }
 
-.field input,
-.field textarea {
+.field input {
   width: 100%;
   border: 1px solid rgb(246 242 232 / 16%);
   border-radius: 8px;
@@ -176,16 +175,7 @@ button:disabled {
   padding: 0 14px;
 }
 
-.field textarea {
-  min-height: 116px;
-  max-height: 240px;
-  resize: vertical;
-  line-height: 1.45;
-  padding: 12px 14px;
-}
-
-.field input:focus,
-.field textarea:focus {
+.field input:focus {
   border-color: rgb(141 215 204 / 70%);
   box-shadow: 0 0 0 3px rgb(141 215 204 / 12%);
 }
@@ -219,6 +209,36 @@ button:disabled {
   align-items: center;
   gap: 8px;
   font-size: 13px;
+  font-weight: 700;
+}
+
+.session-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgb(141 215 204 / 20%);
+  border-radius: 8px;
+  background: rgb(141 215 204 / 7%);
+  padding: 12px;
+}
+
+.session-card p,
+.session-card small {
+  margin: 0;
+  color: rgb(246 242 232 / 64%);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.session-card button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid rgb(141 215 204 / 34%);
+  border-radius: 8px;
+  background: rgb(141 215 204 / 12%);
+  color: #f6f2e8;
   font-weight: 700;
 }
 

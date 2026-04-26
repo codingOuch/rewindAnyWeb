@@ -1,6 +1,8 @@
 import cors from "cors";
 import express from "express";
 import multer from "multer";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import sharp from "sharp";
 import type {
@@ -17,6 +19,7 @@ import type {
 type CookieSameSite = "Strict" | "Lax" | "None";
 
 interface AuthCookieOptions {
+  useBrowserSession: boolean;
   includeCookies: boolean;
   cookieText: string;
 }
@@ -33,6 +36,11 @@ interface ParsedCookie {
   sameSite?: CookieSameSite;
 }
 
+interface ActiveSession {
+  context: BrowserContext;
+  profileDir: string;
+}
+
 const app = express();
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -43,12 +51,31 @@ const upload = multer({
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DEFAULT_VIEWPORT = { width: 1440, height: 1000 };
+const SESSION_ROOT = path.join(process.cwd(), ".rewind-sessions");
+const activeSessions = new Map<string, ActiveSession>();
 
 app.use(cors());
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.post("/api/session/open", async (req, res) => {
+  const rawUrl = String(req.body?.url ?? "").trim();
+  const viewport = normalizeViewport(req.body?.viewport);
+
+  try {
+    const url = normalizeUrl(rawUrl);
+    const session = await openLoginSession(url, viewport);
+    res.json({
+      ok: true,
+      message: "Login window opened. Finish login there, then run Reverse with browser login state enabled.",
+      profile: session.profileDir
+    });
+  } catch (error) {
+    res.status(400).json({ error: errorMessage(error) });
+  }
 });
 
 app.post("/api/analyze/url", async (req, res) => {
@@ -106,6 +133,7 @@ function normalizeUrl(rawUrl: string) {
 function normalizeAuthOptions(input: unknown): AuthCookieOptions {
   const asRecord = typeof input === "object" && input ? (input as Record<string, unknown>) : {};
   return {
+    useBrowserSession: Boolean(asRecord.useBrowserSession),
     includeCookies: Boolean(asRecord.includeCookies),
     cookieText: String(asRecord.cookieText ?? "").trim()
   };
@@ -117,23 +145,26 @@ async function analyzeUrl(
   auth: AuthCookieOptions
 ): Promise<AnalysisResult> {
   let browser: Browser | null = null;
+  let context: BrowserContext | null = null;
+  let page: Page | null = null;
+  let closeContextWhenDone = true;
 
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: ["--disable-blink-features=AutomationControlled"]
-    });
-    const context = await browser.newContext({
-      viewport,
-      deviceScaleFactor: 1,
-      locale: "en-US",
-      timezoneId: "America/Los_Angeles",
-      userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    });
+    if (auth.useBrowserSession) {
+      const sessionContext = await getBrowserSessionContext(url, viewport);
+      context = sessionContext.context;
+      closeContextWhenDone = sessionContext.closeContextWhenDone;
+    } else {
+      browser = await chromium.launch({
+        headless: true,
+        args: ["--disable-blink-features=AutomationControlled"]
+      });
+      context = await browser.newContext(browserContextOptions(viewport));
+    }
+
     await context.addInitScript("Object.defineProperty(navigator, 'webdriver', { get: () => undefined })");
     await applyAuthCookies(context, url, auth);
-    const page = await context.newPage();
+    page = await context.newPage();
 
     await gotoPage(page, url);
     await page.waitForTimeout(900);
@@ -141,7 +172,22 @@ async function analyzeUrl(
     const screenshot = await page.screenshot({ fullPage: false, type: "png" });
     const extraction = await collectPageModel(page);
     if (isBlockedPage(extraction.title, extraction.elements)) {
-      throw new Error("This page returned an anti-bot or verification screen. Try screenshot mode for this target.");
+      if (auth.useBrowserSession && closeContextWhenDone) {
+        await page.close().catch(() => undefined);
+        await context.close().catch(() => undefined);
+        context = null;
+        page = null;
+        return analyzeUrl(url, viewport, {
+          ...auth,
+          useBrowserSession: false
+        });
+      }
+
+      throw new Error(
+        auth.useBrowserSession
+          ? "This browser session returned an anti-bot or verification screen. Open the login window, keep it available, then try again."
+          : "This page returned an anti-bot or verification screen. Try screenshot mode for this target."
+      );
     }
     const palette = await extractPaletteFromImage(screenshot);
     const styleGuide = buildStyleGuide({
@@ -185,8 +231,91 @@ async function analyzeUrl(
       }
     };
   } finally {
+    if (!closeContextWhenDone) {
+      await page?.close().catch(() => undefined);
+    }
+    if (closeContextWhenDone) {
+      await context?.close().catch(() => undefined);
+    }
     await browser?.close();
   }
+}
+
+function browserContextOptions(viewport: { width: number; height: number }) {
+  return {
+    viewport,
+    deviceScaleFactor: 1,
+    locale: "en-US",
+    timezoneId: "America/Los_Angeles",
+    userAgent:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+  };
+}
+
+async function openLoginSession(url: string, viewport: { width: number; height: number }) {
+  const key = sessionKey(url);
+  const existing = activeSessions.get(key);
+  if (existing) {
+    const page = existing.context.pages()[0] ?? (await existing.context.newPage());
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 35_000 });
+    await page.bringToFront();
+    return existing;
+  }
+
+  const profileDir = await sessionProfileDir(url);
+  const context = await chromium.launchPersistentContext(profileDir, {
+    ...browserContextOptions(viewport),
+    headless: false,
+    args: ["--disable-blink-features=AutomationControlled"]
+  });
+  await context.addInitScript("Object.defineProperty(navigator, 'webdriver', { get: () => undefined })");
+  context.on("close", () => {
+    activeSessions.delete(key);
+  });
+
+  const page = context.pages()[0] ?? (await context.newPage());
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: 35_000 });
+  await page.bringToFront();
+
+  const session = { context, profileDir };
+  activeSessions.set(key, session);
+  return session;
+}
+
+async function getBrowserSessionContext(url: string, viewport: { width: number; height: number }) {
+  const existing = activeSessions.get(sessionKey(url));
+  if (existing) {
+    return {
+      context: existing.context,
+      closeContextWhenDone: false
+    };
+  }
+
+  const profileDir = await sessionProfileDir(url);
+  const context = await chromium.launchPersistentContext(profileDir, {
+    ...browserContextOptions(viewport),
+    headless: true,
+    args: ["--disable-blink-features=AutomationControlled"]
+  });
+
+  return {
+    context,
+    closeContextWhenDone: true
+  };
+}
+
+async function sessionProfileDir(url: string) {
+  await mkdir(SESSION_ROOT, { recursive: true });
+  const parsed = new URL(url);
+  const profileName = `${parsed.protocol.replace(":", "")}-${parsed.hostname}-${parsed.port || "default"}`
+    .replace(/[^a-z0-9._-]+/gi, "-")
+    .toLowerCase();
+  return path.join(SESSION_ROOT, profileName);
+}
+
+function sessionKey(url: string) {
+  const parsed = new URL(url);
+  return `${parsed.protocol}//${parsed.host}`;
 }
 
 async function applyAuthCookies(context: BrowserContext, url: string, auth: AuthCookieOptions) {

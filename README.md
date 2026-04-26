@@ -25,18 +25,17 @@ Screenshot uploads work without a browser. They infer palette, canvas size, visu
 
 ## Authenticated pages
 
-URL mode can replay a logged-in session for sites that require authentication:
+URL mode can replay a logged-in session for sites that require authentication without manually pasting cookies:
 
-1. Check **Bring login cookies**.
-2. Paste one of these formats:
-   - a raw `Cookie` header, for example `sid=...; theme=...`
-   - a JSON cookie export, such as `[{ "name": "sid", "value": "...", "domain": ".example.com", "path": "/" }]`
-   - a Netscape cookie file
-3. Run **Reverse**.
+1. Check **Use browser login state**.
+2. Click **Open login window**.
+3. Log in to the target site in the opened Chromium window.
+4. Keep the login window available for the most reliable current-session capture.
+5. Run **Reverse** with **Use browser login state** still checked.
 
-Cookies are injected into the Playwright browser context for that one request only. They are not written to disk or stored by the app.
+The app stores a local Playwright browser profile under `.rewind-sessions/` so cookies and localStorage can be reused for future captures of the same site. This directory is git-ignored.
 
-The app cannot automatically read cookies from your normal browser for another domain. Browsers intentionally block that. A future browser extension or explicit local browser profile integration could make this smoother.
+The app cannot automatically read cookies from your normal browser for another domain. Browsers intentionally block that. A future browser extension could make that exact current-browser handoff smoother.
 
 ## AI usage
 

@@ -1,8 +1,7 @@
 import type { AnalysisResult } from "./types";
 
 export interface UrlAuthOptions {
-  includeCookies: boolean;
-  cookieText: string;
+  useBrowserSession: boolean;
 }
 
 export async function analyzeUrl(url: string, auth?: UrlAuthOptions): Promise<AnalysisResult> {
@@ -21,7 +20,29 @@ export async function analyzeUrl(url: string, auth?: UrlAuthOptions): Promise<An
     })
   });
 
-  return readResult(response);
+  return readResult<AnalysisResult>(response);
+}
+
+export async function openLoginWindow(url: string) {
+  const response = await fetch("/api/session/open", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      url,
+      viewport: {
+        width: 1280,
+        height: 900
+      }
+    })
+  });
+
+  return readResult<{
+    ok: true;
+    message: string;
+    profile: string;
+  }>(response);
 }
 
 export async function analyzeScreenshot(file: File): Promise<AnalysisResult> {
@@ -34,13 +55,13 @@ export async function analyzeScreenshot(file: File): Promise<AnalysisResult> {
     body: formData
   });
 
-  return readResult(response);
+  return readResult<AnalysisResult>(response);
 }
 
-async function readResult(response: Response) {
+async function readResult<T>(response: Response) {
   const payload = await response.json();
   if (!response.ok) {
     throw new Error(payload.error ?? "Analysis failed.");
   }
-  return payload as AnalysisResult;
+  return payload as T;
 }
